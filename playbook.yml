@@ -1,0 +1,40 @@
+- name: Setup Fedora Server for k3s
+  hosts: localhost
+  connection: local
+  become: true
+  tasks:
+    - name: Configure system hostname
+      ansible.builtin.hostname:
+        name: "prodesk"
+    - name: Additional packages
+      ansible.builtin.dnf:
+        name:
+          - atuin
+          - figlet
+          - neovim
+          - zsh
+        state: present
+    ###
+    # SSH
+    ###
+    - name: Set PermitRootLogin to prohibit-password
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin prohibit-password'
+        state: present
+        backup: true
+
+    - name: Validate sshd config
+      ansible.builtin.command: sshd -t
+      changed_when: false
+
+    - name: Reload SSH service
+      ansible.builtin.service:
+        name: sshd
+        state: reloaded
+
+    - name: Restart SSH service
+      ansible.builtin.service:
+        name: sshd
+        state: restarted
