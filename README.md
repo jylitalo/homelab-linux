@@ -14,9 +14,10 @@ small intel PC with 16GB memory and 256GB.
 ## Ansible Playbook
 
 - fix hostname from localhost
-- atuin, figlet, neovim and zsh as present packages
+- atuin, figlet, kubectl, neovim and zsh as present packages
 - deny root login with password in ssh
 - k3s requirements: kernel modules, sysctl settings, firewall settings
+- k3s and setup config for root
 
 ## Tips & Tricks
 

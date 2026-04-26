@@ -15,6 +15,7 @@
         name:
           - atuin
           - figlet
+          - kubernetes-client
           - neovim
           - zsh
         state: present
@@ -89,7 +90,25 @@
     - name: Runtime swap off (non-persistent)
       ansible.builtin.command: swapoff -a
       changed_when: false
+    ###
+    ## K3S installation
+    ###
+    - name: Install k3s
+      ansible.builtin.command: files/k3s_install.sh
+      environment:
+        INSTALL_K3S_VERSION: "v1.35.3+k3s1"
+      args:
+        creates: /usr/local/bin/k3s
+    - name: Setup kubectl for root
+      ansible.builtin.shell: |
+        mkdir -p /root/.kube
+        cp /etc/rancher/k3s/k3s.yaml /root/.kube/config
+      args:
+        creates: /root/.kube/config
   handlers:
+    ###
+    ## K3S requirements
+    ###
     - name: Restart systemd-modules-load
       community.general.modprobe:
         name: "{{ item }}"
