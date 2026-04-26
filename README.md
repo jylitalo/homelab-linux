@@ -9,13 +9,14 @@ small intel PC with 16GB memory and 256GB.
 ## Preliminary steps
 
 - setup ssh keys for GitHub access
-- `dnf install ansible ansible-lint git`
+- `dnf install ansible ansible-lint git neovim`
 
 ## Ansible Playbook
 
 - fix hostname from localhost
 - atuin, figlet, neovim and zsh as present packages
 - deny root login with password in ssh
+- k3s requirements: kernel modules, sysctl settings, firewall settings
 
 ## Tips & Tricks
 
