@@ -14,7 +14,8 @@ small intel PC with 16GB memory and 256GB.
 ## Ansible Playbook
 
 - fix hostname from localhost
-- atuin, figlet, kubectl, neovim and zsh as present packages
+- atuin, figlet, neovim and zsh as present packages
+- helm for k3s (k3s provides kubectl on its own)
 - deny root login with password in ssh
 - k3s requirements: kernel modules, sysctl settings, firewall settings
 - k3s and setup config for root
@@ -23,3 +24,4 @@ small intel PC with 16GB memory and 256GB.
 
 - when spinning off filesystems from root, use `rsync -aX` instead of just `rsync -a` to get all fs attributes transferred as well.
 - once new filesystem is mounted run `restorecon -RFv /var` for SELinux
+- when create forgejo, your admin account can't be called `admin` or it will fail

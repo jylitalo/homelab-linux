@@ -1,0 +1,29 @@
+persistence:
+  enabled: true
+
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    - host: {{ forgejo_hostname }}
+      paths:
+        - path: /
+          pathType: Prefix
+
+service:
+  http:
+    port: 3000
+  ssh:
+    type: NodePort
+    nodePort: 30222
+
+gitea:
+  admin:
+    username: "{{ forgejo_admin_username }}"
+    password: "{{ forgejo_admin_password }}"
+    email: "{{ forgejo_admin_email }}"
+  config:
+    server:
+      ROOT_URL: http://{{ forgejo_hostname }}
+      HTTP_ADDR: 0.0.0.0
+      HTTP_PORT: 3000
