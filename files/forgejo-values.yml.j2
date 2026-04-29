@@ -19,10 +19,17 @@ service:
 
 gitea:
   admin:
-    username: "{{ forgejo_admin_username }}"
+    username: "forgejo"
     password: "{{ forgejo_admin_password }}"
     email: "{{ forgejo_admin_email }}"
   config:
+    database:
+      DB_TYPE: postgres
+      HOST: postgres-postgresql.databases.svc.cluster.local:5432
+      NAME: forgejo
+      USER: forgejo
+      PASSWD: "{{ postgres_forgejo_password }}"
+      SSL_MODE: disable
     server:
       ROOT_URL: http://{{ forgejo_hostname }}
       HTTP_ADDR: 0.0.0.0

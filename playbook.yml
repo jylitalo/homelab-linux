@@ -15,12 +15,15 @@
     ###
     forgejo_namespace: forgejo
     forgejo_release: 17.0.0
+    # postgres_superuser_password: change-me
+    # postgres_forgejo_password: change-me
     # forgejo_hostname: forgejo.local
     # forgejo_admin_username: my_admin
     # forgejo_admin_password: change-me
     # forgejo_admin_email: admin@example.com
     # flux_user: flux
     # flux_user_password: change-me
+    # flux_user_email: flux@example.com
     flux_release: 2.8.5
     git_repo: flux-config
     git_branch: main
@@ -158,6 +161,72 @@
         cp /etc/rancher/k3s/k3s.yaml "{{ kubeconfig }}"
       args:
         creates: "{{ kubeconfig }}"
+
+    ###
+    # PostgreSQL installation (for Forgejo, etc.)
+    ###
+    - name: Add Bitnami repo
+      ansible.builtin.command:
+        cmd: helm repo add bitnami https://charts.bitnami.com/bitnami
+      changed_when: false
+
+    - name: Update Helm repos
+      ansible.builtin.command:
+        cmd: helm repo update
+      changed_when: false
+
+    - name: Ensure namespace exists
+      ansible.builtin.command:
+        cmd: kubectl create namespace databases
+      register: ns_result
+      failed_when: false
+      changed_when: "'created' in ns_result.stdout"
+
+    - name: Render PostgreSQL values
+      ansible.builtin.template:
+        src: files/postgres-values.yml.j2
+        dest: /tmp/postgres-values.yml
+
+    - name: Install PostgreSQL
+      ansible.builtin.command:
+        cmd: >
+          helm upgrade --install postgres bitnami/postgresql
+          -n databases
+          --create-namespace
+          -f /tmp/postgres-values.yml
+          --wait
+
+    ###
+    # Configure PostgreSQL for Forgejo
+    ###
+    - name: Get PostgreSQL pod name
+      ansible.builtin.shell: |
+        kubectl get pods -n databases \
+          -l app.kubernetes.io/name=postgresql \
+          -o jsonpath='{.items[0].metadata.name}'
+      register: postgres_pod
+      changed_when: false
+
+    - name: Create forgejo role if missing
+      ansible.builtin.shell: |
+        kubectl exec -n databases {{ postgres_pod.stdout }} -- \
+        env PGPASSWORD='{{ postgres_superuser_password }}' \
+        psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='forgejo';" | grep -q 1 || \
+        kubectl exec -n databases {{ postgres_pod.stdout }} -- \
+        env PGPASSWORD='{{ postgres_superuser_password }}' \
+        psql -U postgres -c "CREATE ROLE forgejo LOGIN PASSWORD '{{ postgres_forgejo_password }}';"
+      register: create_role
+      changed_when: create_role.rc == 0
+
+    - name: Ensure forgejo database exists
+      ansible.builtin.shell: |
+        kubectl exec -n databases {{ postgres_pod.stdout }} -- \
+        env PGPASSWORD='{{ postgres_superuser_password }}' \
+        psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname='forgejo';" | grep -q 1 || \
+        kubectl exec -n databases {{ postgres_pod.stdout }} -- \
+        env PGPASSWORD='{{ postgres_superuser_password }}' \
+        psql -U postgres -c "CREATE DATABASE forgejo OWNER forgejo;"
+
     ###
     # Forgejo installation
     ###
@@ -165,6 +234,7 @@
       ansible.builtin.template:
         src: files/forgejo-values.yml.j2
         dest: /tmp/forgejo-values-{{ forgejo_release }}.yml
+
     - name: Install/upgrade Forgejo
       ansible.builtin.command:
         cmd: >
@@ -174,6 +244,7 @@
           --namespace {{ forgejo_namespace }}
           -f /tmp/forgejo-values-{{ forgejo_release }}.yml
           --create-namespace
+
     - name: Wait for Forgejo rollout
       ansible.builtin.command:
         cmd: >
@@ -182,6 +253,7 @@
           -n {{ forgejo_namespace }}
           --timeout=300s
       changed_when: false
+
     - name: Wait for Forgejo HTTP
       ansible.builtin.uri:
         url: "http://{{ forgejo_hostname }}/api/healthz"
@@ -190,47 +262,64 @@
       retries: 20
       delay: 5
       until: forgejo_health.status == 200
-    - name: Check if admin user exists
-      ansible.builtin.uri:
-        url: "http://{{ forgejo_hostname }}/api/v1/users/{{ forgejo_admin_username }}"
-        method: GET
-        status_code: [200, 404]
-      register: admin_check
-    - name: Create admin user (only if missing)
-      ansible.builtin.shell: >
-        kubectl exec -n {{ forgejo_namespace }} deploy/forgejo --
+
+    - name: Check if user exists
+      ansible.builtin.shell: |
+        kubectl exec -n forgejo deploy/forgejo -- \
+        forgejo admin user list | grep -w "{{ forgejo_admin_username }}"
+      register: user_check
+      failed_when: false
+      changed_when: false
+
+    - name: Check if email exists
+      ansible.builtin.shell: |
+        kubectl exec -n forgejo deploy/forgejo -- \
+        forgejo admin user list | grep -F "{{ forgejo_admin_email }}"
+      register: email_check
+      failed_when: false
+      changed_when: false
+
+    - name: Create admin user
+      ansible.builtin.command: >
+        kubectl exec -n forgejo deploy/forgejo --
         forgejo admin user create
         --username {{ forgejo_admin_username }}
         --password {{ forgejo_admin_password }}
         --email {{ forgejo_admin_email }}
         --admin
-      when: admin_check.status == 404
+      when:
+        - user_check.rc != 0
+        - email_check.rc != 0
+
     ###
     # FluxCD preparations
     ###
     - name: Check if flux user exists
-      ansible.builtin.uri:
-        url: "http://{{ forgejo_hostname }}/api/v1/users/{{ flux_user }}"
-        user: "{{ forgejo_admin_username }}"
-        password: "{{ forgejo_admin_password }}"
-        force_basic_auth: true
-        status_code: [200, 404]
+      ansible.builtin.shell: |
+        kubectl exec -n forgejo deploy/forgejo -- \
+        forgejo admin user list | grep -w "flux"
       register: flux_user_check
+      failed_when: false
+      changed_when: false
+
+    - name: Check if email of flux user exists
+      ansible.builtin.shell: |
+        kubectl exec -n forgejo deploy/forgejo -- \
+        forgejo admin user list | grep -F "{{ flux_user_email }}"
+      register: flux_user_email_check
+      failed_when: false
+      changed_when: false
+
     - name: Create flux user
-      ansible.builtin.uri:
-        url: "http://{{ forgejo_hostname }}/api/v1/admin/users"
-        method: POST
-        user: "{{ forgejo_admin_username }}"
-        password: "{{ forgejo_admin_password }}"
-        force_basic_auth: true
-        body_format: json
-        body:
-          username: "{{ flux_user }}"
-          password: "{{ flux_user_password }}"
-          email: "flux@example.com"
-          must_change_password: false
-        status_code: 201
-      when: flux_user_check.status == 404
+      ansible.builtin.command: >
+        kubectl exec -n forgejo deploy/forgejo --
+        forgejo admin user create
+        --username {{ flux_user }}
+        --password {{ flux_user_password }}
+        --email {{ flux_user_email }}
+      when:
+        - flux_user_check.rc != 0
+        - flux_user_email_check.rc != 0
 
   handlers:
     ###
