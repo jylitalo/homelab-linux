@@ -40,6 +40,13 @@ small intel PC with 16GB memory and 256GB.
 - forgejo into k3s so that it uses postgresql for users etc.
 - create forgejo admin and flux user into forgejo
 
+### After playbook
+
+```bash
+sh files/flux-install.sh
+flux install
+```
+
 ## Tips & Tricks
 
 - when spinning off filesystems from root, use `rsync -aX` instead of just `rsync -a` to get all fs attributes transferred as well.

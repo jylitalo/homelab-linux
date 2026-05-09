@@ -15,6 +15,7 @@
     ###
     forgejo_namespace: forgejo
     forgejo_release: 17.0.0
+    flux_release: 2.8.6
     # postgres_superuser_password: change-me
     # postgres_forgejo_password: change-me
     # forgejo_hostname: forgejo.local
@@ -24,7 +25,6 @@
     # flux_user: flux
     # flux_user_password: change-me
     # flux_user_email: flux@example.com
-    flux_release: 2.8.5
     git_repo: flux-config
     git_branch: main
     git_path: clusters/rift
@@ -41,6 +41,7 @@
           - figlet
           - helm
           - neovim
+          - pwgen
           - zsh
         state: present
     ###
@@ -116,12 +117,12 @@
         state: enabled
         immediate: true
       loop:
-        - 6443/tcp    # k3s API server
-        - 10250/tcp   # kubelet
         - 80/tcp      # Traefik HTTP
         - 443/tcp     # Traefik HTTPS
-        - 30222/tcp   # Forgejo SSH NodePort
+        - 6443/tcp    # k3s API server
         - 8472/udp    # Flannel VXLAN (pod-to-pod overlay)
+        - 10250/tcp   # kubelet
+        - 30222/tcp   # Forgejo SSH NodePort
         - 51820/udp   # Flannel WireGuard (if used)
     - name: Trust pod and service CIDRs
       ansible.posix.firewalld:
@@ -234,6 +235,8 @@
       ansible.builtin.template:
         src: files/forgejo-values.yml.j2
         dest: /tmp/forgejo-values-{{ forgejo_release }}.yml
+      tags:
+        - forgejo
 
     - name: Install/upgrade Forgejo
       ansible.builtin.command:
@@ -244,6 +247,8 @@
           --namespace {{ forgejo_namespace }}
           -f /tmp/forgejo-values-{{ forgejo_release }}.yml
           --create-namespace
+      tags:
+        - forgejo
 
     - name: Wait for Forgejo rollout
       ansible.builtin.command:
@@ -320,6 +325,43 @@
       when:
         - flux_user_check.rc != 0
         - flux_user_email_check.rc != 0
+
+    - name: Check if ssh key already exists for flux
+      ansible.builtin.stat:
+        path: /root/.ssh/id_flux
+      register: flux_key
+
+    - name: Generate ECDSA SSH key for flux if missing
+      ansible.builtin.command:
+        cmd: ssh-keygen -t ecdsa -b 521 -N '' -f /root/.ssh/id_flux
+        creates: /root/.ssh/id_flux
+      when: not flux_key.stat.exists
+
+    - name: Read public key
+      ansible.builtin.slurp:
+        src: /root/.ssh/id_flux.pub
+      register: flux_pub
+
+    - name: Get Forgejo pod name
+      ansible.builtin.command:
+        cmd: >
+          kubectl -n {{ forgejo_namespace }}
+          get pod -l app=forgejo
+          -o jsonpath={.items[0].metadata.name}
+      register: forgejo_pod
+      changed_when: false
+
+    - name: Add SSH key to flux user
+      ansible.builtin.command:
+        cmd: >
+          kubectl -n forgejo exec {{ forgejo_pod.stdout }} --
+          forgejo admin user add-key
+          --username flux
+          --title "FluxCD"
+          --key "{{ flux_pub.content | b64decode | trim }}"
+      register: addkey_result
+      changed_when: "'added' in addkey_result.stdout | lower"
+      failed_when: false
 
   handlers:
     ###
