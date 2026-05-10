@@ -3,7 +3,7 @@ Ansible playbook that is used for setting up host for k3s
 
 ## Base
 
-Fedora Server 43 with / (15GB), /var (50GB) and /home (5GB) filesystems on
+Fedora Server 43 with / (15GB), /var (120GB) and /home (5GB) filesystems on
 small intel PC with 16GB memory and 256GB.
 
 ## Network
@@ -36,22 +36,11 @@ small intel PC with 16GB memory and 256GB.
 - deny root login with password in ssh
 - k3s requirements: kernel modules, sysctl settings, firewall settings
 - k3s and setup config for root
-- postgresql into k3s
-- forgejo into k3s so that it uses postgresql for users etc.
-- create forgejo admin and flux user into forgejo
-
-### After playbook
-
-```bash
-sh files/flux-install.sh
-flux install
-```
+- user account for fluxcd's git repository into fedora
+- bootstrap fluxcd
 
 ## Tips & Tricks
 
 - when spinning off filesystems from root, use `rsync -aX` instead of just `rsync -a` to get all fs attributes transferred as well.
 - once new filesystem is mounted run `restorecon -RFv /var` for SELinux
-- when creating users into forgejo
-  - your admin account can't be called `admin` or it will fail
-  - all usernames and e-mails have to be unique
 - k3s persistent volumes are stored under /var/lib/rancher/k3s/storage/pvc-...
