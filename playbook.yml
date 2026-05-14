@@ -33,6 +33,21 @@
           - zsh
         state: present
     ###
+    # bashrc & nvim
+    ###
+    - name: Ensure EDITOR is set in ~/.bashrc
+      ansible.builtin.lineinfile:
+        path: "{{ ansible_env.HOME }}/.bashrc"
+        line: "export EDITOR=nvim"
+        state: present
+        create: true
+    - name: Ensure EDITOR is set in ~/.bashrc
+      ansible.builtin.lineinfile:
+        path: "{{ ansible_env.HOME }}/.bashrc"
+        line: "alias vim=nvim"
+        state: present
+        create: true
+    ###
     # SSH
     ###
     - name: Set PermitRootLogin to prohibit-password
@@ -150,6 +165,58 @@
         cp /etc/rancher/k3s/k3s.yaml "{{ kubeconfig }}"
       args:
         creates: "{{ kubeconfig }}"
+    ###
+    ## fluxcd setup
+    ###
+    - name: Check if flux SSH key exists
+      ansible.builtin.stat:
+        path: /root/.ssh/id_flux
+      register: flux_key
+    - name: Generate ECDSA SSH key for flux if missing
+      ansible.builtin.command:
+        cmd: ssh-keygen -t ecdsa -b 521 -N '' -f /root/.ssh/id_flux
+        creates: /root/.ssh/id_flux
+      when: not flux_key.stat.exists
+    - name: Ensure fluxcd user exists
+      ansible.builtin.user:
+        name: fluxcd
+        state: present
+        create_home: true
+        shell: /bin/bash
+    - name: Directories for fluxcd
+      ansible.builtin.file:
+        path: "/home/fluxcd/{{ item }}"
+        state: directory
+        owner: fluxcd
+        group: fluxcd
+        mode: 0700
+      loop:
+        - .ansible/tmp
+        - .ssh
+        - gitops.git
+    - name: Copy file with permissions
+      ansible.builtin.copy:
+        src: /root/.ssh/id_flux.pub
+        dest: /home/fluxcd/.ssh/authorized_keys
+        owner: fluxcd
+        group: fluxcd
+        mode: "0700"
+    - name: Create repo
+      ansible.builtin.command:
+        cmd: git init --bare --initial-branch=main
+        chdir: /home/fluxcd/gitops.git
+        creates: /home/fluxcd/gitops.git/refs
+      become: true
+      become_user: fluxcd
+    - name: Install flux
+      ansible.builtin.command:
+        cmd: files/flux-install.sh
+        creates: /usr/local/bin/flux
+    - name: Bootstrap fluxcd
+      ansible.builtin.command:
+        cmd: flux bootstrap git --url=ssh://fluxcd@git.ylitalot.com:22/home/fluxcd/gitops.git --branch=main --path=clusters/homelab --private-key-file=/root/.ssh/id_flux --silent
+        creates: /home/fluxcd/gitops.git/clusters/homelab
+
   handlers:
     ###
     ## K3S requirements
