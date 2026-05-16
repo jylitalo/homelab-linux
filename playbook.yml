@@ -216,6 +216,27 @@
       ansible.builtin.command:
         cmd: flux bootstrap git --url=ssh://fluxcd@git.ylitalot.com:22/home/fluxcd/gitops.git --branch=main --path=clusters/homelab --private-key-file=/root/.ssh/id_flux --silent
         creates: /home/fluxcd/gitops.git/clusters/homelab
+    ###
+    # perf tuning
+    ###
+    - name: Ensure custom inotify limits configuration file exists
+      ansible.builtin.lineinfile:
+        path: /etc/sysctl.d/99-kubernetes-inotify.conf
+        line: "{{ item.key }} = {{ item.value }}"
+        regexp: "^{{ item.key | regex_escape() }}\\s*="
+        state: present
+        create: true
+        mode: '0644'
+      loop:
+        - { key: 'fs.inotify.max_user_watches', value: '524288' }
+        - { key: 'fs.inotify.max_user_instances', value: '512' }
+      become: true
+      register: sysctl_config
+
+    - name: Apply sysctl settings immediately if configuration changed
+      ansible.builtin.command: sysctl --system
+      become: true
+      when: sysctl_config.changed
 
   handlers:
     ###
