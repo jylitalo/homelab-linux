@@ -57,20 +57,38 @@
         line: 'PermitRootLogin prohibit-password'
         state: present
         backup: true
+      tags:
+        - sshd
+
+    - name: Set PermitRootLogin to prohibit-password
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+        state: present
+        backup: true
+      tags:
+        - sshd
 
     - name: Validate sshd config
       ansible.builtin.command: sshd -t
       changed_when: false
+      tags:
+        - sshd
 
     - name: Reload SSH service
       ansible.builtin.service:
         name: sshd
         state: reloaded
+      tags:
+        - sshd
 
     - name: Restart SSH service
       ansible.builtin.service:
         name: sshd
         state: restarted
+      tags:
+        - sshd
 
     ###
     ## K3S requirements
@@ -138,6 +156,15 @@
         - https
         - kube-apiserver
         - kubelet
+      tags:
+        - firewalld
+    - name: Open k3s ports with service name
+      ansible.posix.firewalld:
+        service: "{{ item }}"
+        permanent: true
+        state: disabled
+        immediate: true
+      loop:
         - nfs      # for longhorn backups
         - mountd   # NFS for longhorn backups
         - rpc-bind # NFS for longhorn backups
@@ -174,7 +201,7 @@
     ## K3S installation
     ###
     - name: Install k3s
-      ansible.builtin.command: files/k3s_install.sh
+      ansible.builtin.command: files/k3s_install.sh --disable=traefik
       environment:
         INSTALL_K3S_VERSION: "v1.35.3+k3s1"
       args:
