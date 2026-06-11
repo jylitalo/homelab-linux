@@ -109,8 +109,8 @@
       ansible.builtin.copy:
         dest: /etc/sysctl.d/99-k3s.conf
         content: |
-          fs.inotify.max_user_watches = 524288
-          fs.inotify.max_user_instances = 512
+          fs.inotify.max_user_instances = 1024
+          fs.inotify.max_user_watches = 1048576
           net.ipv4.ip_forward = 1
           net.bridge.bridge-nf-call-iptables = 1
           net.bridge.bridge-nf-capp-ip6tables = 1
