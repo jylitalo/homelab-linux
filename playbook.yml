@@ -30,6 +30,7 @@
           - helm
           - neovim
           - pwgen
+          - samba
           - zsh
         state: present
     ###
@@ -160,10 +161,12 @@
         state: enabled
         immediate: true
       loop:
+        - dns
         - http
         - https
         - kube-apiserver
         - kubelet
+        - samba
       tags:
         - firewalld
 
