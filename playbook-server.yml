@@ -22,75 +22,15 @@
     - name: Configure system hostname
       ansible.builtin.hostname:
         name: "prodesk"
-    - name: Additional packages
+    - name: Import shared tasks
+      ansible.builtin.import_tasks:
+        file: playbook-shared.yml
+    - name: Additional server packages
       ansible.builtin.dnf:
         name:
-          - atuin
-          - figlet
           - helm
-          - neovim
-          - pwgen
           - samba
-          - zsh
-        state: present
-    ###
-    # bashrc & nvim
-    ###
-    - name: Ensure EDITOR is set in ~/.bashrc
-      ansible.builtin.lineinfile:
-        path: "{{ ansible_env.HOME }}/.bashrc"
-        line: "export EDITOR=nvim"
-        state: present
-        create: true
-    - name: Ensure EDITOR is set in ~/.bashrc
-      ansible.builtin.lineinfile:
-        path: "{{ ansible_env.HOME }}/.bashrc"
-        line: "alias vim=nvim"
-        state: present
-        create: true
-    ###
-    # SSH
-    ###
-    - name: Set PermitRootLogin to prohibit-password
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: '^#?PermitRootLogin'
-        line: 'PermitRootLogin prohibit-password'
-        state: present
-        backup: true
-      tags:
-        - sshd
-
-    - name: Set PermitRootLogin to prohibit-password
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: '^#?PasswordAuthentication'
-        line: 'PasswordAuthentication no'
-        state: present
-        backup: true
-      tags:
-        - sshd
-
-    - name: Validate sshd config
-      ansible.builtin.command: sshd -t
-      changed_when: false
-      tags:
-        - sshd
-
-    - name: Reload SSH service
-      ansible.builtin.service:
-        name: sshd
-        state: reloaded
-      tags:
-        - sshd
-
-    - name: Restart SSH service
-      ansible.builtin.service:
-        name: sshd
-        state: restarted
-      tags:
-        - sshd
-
+    state: present
     ###
     ## K3S requirements
     ###

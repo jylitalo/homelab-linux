@@ -1,0 +1,52 @@
+- name: Additional packages
+  ansible.builtin.dnf:
+    name:
+      - atuin
+      - figlet
+      - neovim
+      - pwgen
+      - shellcheck
+      - zsh
+    state: present
+###
+# SSH
+###
+- name: Set PermitRootLogin to prohibit-password
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PermitRootLogin'
+    line: 'PermitRootLogin prohibit-password'
+    state: present
+    backup: true
+  tags:
+    - sshd
+
+- name: Refuse password authentication in sshd
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication'
+    line: 'PasswordAuthentication no'
+    state: present
+    backup: true
+  tags:
+    - sshd
+
+- name: Validate sshd config
+  ansible.builtin.command: sshd -t
+  changed_when: false
+  tags:
+    - sshd
+
+- name: Reload SSH service
+  ansible.builtin.service:
+    name: sshd
+    state: reloaded
+  tags:
+    - sshd
+
+- name: Restart SSH service
+  ansible.builtin.service:
+    name: sshd
+    state: restarted
+  tags:
+    - sshd
