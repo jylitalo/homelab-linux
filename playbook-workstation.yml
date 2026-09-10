@@ -1,0 +1,30 @@
+- name: Setup Fedora Workstation
+  hosts: localhost
+  connection: local
+  become: true
+  tasks:
+    - name: Configure system hostname
+      ansible.builtin.hostname:
+        name: "touchbar"
+    - name: Import shared tasks
+      ansible.builtin.import_tasks:
+        file: playbook-shared.yml
+    - name: Additional workstate packages
+      ansible.builtin.dnf:
+        name:
+          - alacritty
+          - btop
+          - conky
+          - pass
+          - python3-pip
+          - python3-i3ipc
+          - sway
+          - sway-systemd
+          - waybar
+        state: present
+    - name: Install autotiling via pip for user
+      ansible.builtin.pip:
+        name: autotiling
+        extra_args: --user
+        state: present
+      become_user: jylitalo
