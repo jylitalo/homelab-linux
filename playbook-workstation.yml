@@ -15,6 +15,7 @@
           - alacritty
           - btop
           - conky
+          - grimshot
           - pass
           - python3-pip
           - python3-i3ipc
@@ -28,3 +29,13 @@
         extra_args: --user
         state: present
       become_user: jylitalo
+    - name: Add Flathub
+      community.general.flatpak_remote:
+        name: flathub
+        state: present
+        flatpakrepo_url: https://flathub.org/repo/flathub.flatpakrepo
+    - name: Install Logseq
+      community.general.flatpak:
+        name: com.logseq.Logseq
+        state: present
+        remote: flathub
