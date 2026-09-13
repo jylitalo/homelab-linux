@@ -16,7 +16,10 @@
           - btop
           - conky
           - grimshot
+          - libu2f-host
           - pass
+          - pcsc-lite
+          - pcsc-lite-ccid
           - python3-pip
           - python3-i3ipc
           - sway
@@ -46,4 +49,12 @@
     - name: Import shared handlers
       ansible.builtin.import_tasks:
         file: handlers/shared.yml
+    - name: pcscd.socket enabled
+      ansible.builtin.systemd_service:
+        name: pcscd.socket
+        state: started
+        enabled: true
+    ###
+    # TODO: Missing Yubivo authenticator download
+    ###
 
