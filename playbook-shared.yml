@@ -5,6 +5,7 @@
       - figlet
       - neovim
       - pwgen
+      - rclone
       - shellcheck
       - zsh
     state: present
