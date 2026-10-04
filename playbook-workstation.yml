@@ -13,10 +13,13 @@
       ansible.builtin.dnf:
         name:
           - alacritty
+          - age
           - btop
           - conky
           - grimshot
           - libu2f-host
+          - niri
+          - noctalia
           - pass
           - pcsc-lite
           - pcsc-lite-ccid
@@ -25,7 +28,25 @@
           - sway
           - sway-systemd
           - waybar
+          - zathura
+          - zathura-pdf-mupdf
         state: present
+    - name: Configure kubecolor repository
+      ansible.builtin.yum_repository:
+        name: kubecolor
+        description: Kubecolor RPM repository
+        baseurl: https://kubecolor.github.io/packages/rpm/
+        enabled: false
+        gpgcheck: true
+        gpgkey: https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x62acb02733c915f1
+
+    - name: Install specific kubecolor version
+      ansible.builtin.dnf:
+        name: kubecolor-0.8.0-1
+        state: present
+        enablerepo:
+          - kubecolor
+
     - name: Install autotiling via pip for user
       ansible.builtin.pip:
         name: autotiling
