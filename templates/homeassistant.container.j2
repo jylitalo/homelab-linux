@@ -1,0 +1,32 @@
+
+[Unit]
+Description=Home Assistant
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=homeassistant
+Image=ghcr.io/home-assistant/home-assistant:stable
+
+Network=host
+UserNS=keep-id
+
+AddCapability=NET_ADMIN
+AddCapability=NET_RAW
+
+SecurityLabelDisable=true
+
+Environment=TZ=Europe/Helsinki
+
+Volume={{ homeassistant_config_dir }}:/config
+Volume=/run/dbus:/run/dbus:ro
+
+StopTimeout=60
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target
+

@@ -1,0 +1,155 @@
+- name: Setup Debian Trixie on Raspberry
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    homeassistant_user: homeassistant
+    homeassistant_home: /home/homeassistant
+    homeassistant_config_dir: /home/homeassistant/.local/share/homeassistant/config
+    homeassistant_uid: "{{ lookup('ansible.builtin.pipe', 'id -u homeassistant') }}"
+    matter_server_data_dir: /home/homeassistant/.local/share/matter-server
+
+  tasks:
+    - name: Configure system hostname
+      ansible.builtin.hostname:
+        name: "touchbar"
+    - name: Import shared tasks
+      ansible.builtin.import_tasks:
+        file: playbook-shared.yml
+    - name: Additional workstate packages
+      ansible.builtin.apt:
+        name:
+          - podman
+          - uidmap
+          - dbus-user-session
+        state: present
+    - name: Create Quadlet directory
+      ansible.builtin.file:
+        path: /etc/containers/systemd
+        state: directory
+        mode: "0755"
+
+    ###
+    # matter-server
+    ###
+    - name: Create Matter Server data directory
+      ansible.builtin.file:
+        path: "{{ matter_server_data_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Deploy Matter Server Quadlet
+      ansible.builtin.template:
+        src: matter-server.container.j2
+        dest: /etc/containers/systemd/matter-server.container
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Matter Server
+
+    - name: Enable and start Matter Server
+      ansible.builtin.systemd_service:
+        name: matter-server.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    ###
+    # homeassistant
+    ###
+    - name: Create Home Assistant user
+      ansible.builtin.user:
+        name: "{{ homeassistant_user }}"
+        home: "{{ homeassistant_home }}"
+        create_home: true
+        shell: /usr/sbin/nologin
+        system: false
+
+    - name: Enable lingering for Home Assistant user
+      ansible.builtin.command:
+        cmd: "loginctl enable-linger {{ homeassistant_user }}"
+        creates: "/var/lib/systemd/linger/{{ homeassistant_user }}"
+
+    - name: Create Home Assistant configuration directory
+      ansible.builtin.file:
+        path: "{{ homeassistant_config_dir }}"
+        state: directory
+        owner: "{{ homeassistant_user }}"
+        group: "{{ homeassistant_user }}"
+        mode: "0750"
+
+    - name: Create Quadlet directory
+      ansible.builtin.file:
+        path: "{{ homeassistant_home }}/.config/containers/systemd"
+        state: directory
+        owner: "{{ homeassistant_user }}"
+        group: "{{ homeassistant_user }}"
+        mode: "0755"
+
+    - name: Deploy Home Assistant Quadlet
+      ansible.builtin.template:
+        src: homeassistant.container.j2
+        dest: "{{ homeassistant_home }}/.config/containers/systemd/homeassistant.container"
+        owner: "{{ homeassistant_user }}"
+        group: "{{ homeassistant_user }}"
+        mode: "0644"
+      notify: Restart Home Assistant
+
+    - name: Ensure Home Assistant home directory ownership
+      ansible.builtin.file:
+        path: "{{ homeassistant_home }}"
+        state: directory
+        owner: "{{ homeassistant_user }}"
+        group: "{{ homeassistant_user }}"
+        mode: "0750"
+
+    - name: Create Ansible temporary directory
+      ansible.builtin.file:
+        path: "{{ homeassistant_home }}/.ansible/tmp"
+        state: directory
+        owner: "{{ homeassistant_user }}"
+        group: "{{ homeassistant_user }}"
+        mode: "0700"
+
+    - name: Ensure Home Assistant home directory ownership
+      ansible.builtin.file:
+        path: "{{ homeassistant_home }}"
+        state: directory
+        owner: "{{ homeassistant_user }}"
+        group: "{{ homeassistant_user }}"
+        mode: "0750"
+
+    - name: Enable and start Home Assistant
+      become_user: "{{ homeassistant_user }}"
+      become_flags: "-H"
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ homeassistant_uid }}"
+        DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ homeassistant_uid }}/bus"
+      ansible.builtin.systemd_service:
+        name: homeassistant.service
+        scope: user
+        enabled: true
+        state: started
+        daemon_reload: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+
+    - name: Restart Home Assistant
+      become_user: "{{ homeassistant_user }}"
+      ansible.builtin.systemd_service:
+        name: homeassistant.service
+        scope: user
+        state: restarted
+        daemon_reload: true
+
+    - name: Restart Matter Server
+      ansible.builtin.systemd_service:
+        name: matter-server.service
+        state: restarted
+        daemon_reload: true
+

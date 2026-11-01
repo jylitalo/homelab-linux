@@ -1,0 +1,25 @@
+
+[Unit]
+Description=Matter Server
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=matter-server
+Image=ghcr.io/matter-js/matterjs-server:stable
+
+Network=host
+PodmanArgs=--privileged
+
+Environment=TZ=Europe/Helsinki
+
+Volume={{ matter_server_data_dir }}:/data:Z
+Volume=/run/dbus:/run/dbus:ro
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target
+

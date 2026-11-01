@@ -1,5 +1,5 @@
 - name: Additional packages
-  ansible.builtin.dnf:
+  ansible.builtin.package:
     name:
       - atuin
       - figlet
