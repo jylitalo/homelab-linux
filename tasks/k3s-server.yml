@@ -1,0 +1,121 @@
+- name: Kernel modules for k3s
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k8s.conf
+    content: |
+      {% for m in k3s_host_modules %}
+      {{ m }}
+      {% endfor %}
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart systemd-modules-load
+
+- name: Sysctl settings for k3s
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-k3s.conf
+    content: |
+      fs.inotify.max_user_instances = 1024
+      fs.inotify.max_user_watches = 1048576
+      net.ipv4.ip_forward = 1
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-capp-ip6tables = 1
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload sysctl
+  tags:
+    - sysctl
+
+- name: Configure NetworkManager to ignore k3s CNI interfaces
+  ansible.builtin.copy:
+    dest: /etc/NetworkManager/conf.d/k3s.conf
+    content: |
+      [keyfile]
+      unmanaged-devices=interface-name:cni0;interface-name:flannel.1
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart NetworkManager
+
+- name: Firewalld has been enabled
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+  tags:
+    - firewalld
+
+- name: Open k3s ports
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    state: enabled
+    immediate: true
+  loop:
+    - 6443/tcp    # sun-sr-https
+    - 7946/tcp    # pihole
+    - 7946/udp    # pihole
+    - 8472/udp    # Flannel VXLAN (pod-to-pod overlay)
+    - 10250/tcp   # kube-metrics-server
+    - 30222/tcp   # Forgejo SSH NodePort
+    - 51820/udp   # Flannel WireGuard (if used)
+  tags:
+    - firewalld
+
+- name: Open k3s ports with service name
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    permanent: true
+    state: enabled
+    immediate: true
+  loop:
+    - dns
+    - etcd-client
+    - etcd-server
+    - http
+    - https
+    - kube-apiserver
+    - kubelet
+    - samba
+  tags:
+    - firewalld
+
+- name: Open k3s ports with service name
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    permanent: true
+    state: disabled
+    immediate: true
+  loop:
+    - nfs      # for longhorn backups
+    - mountd   # NFS for longhorn backups
+    - rpc-bind # NFS for longhorn backups
+  tags:
+    - firewalld
+
+- name: Trust pod and service CIDRs
+  ansible.posix.firewalld:
+    source: "{{ item }}"
+    zone: trusted
+    permanent: true
+    state: enabled
+    immediate: true
+  loop:
+    - 10.42.0.0/16   # k3s pod CIDR
+    - 10.43.0.0/16   # k3s service CIDR
+  tags:
+    - firewalld
+
+- name: Trust CNI interfaces
+  ansible.posix.firewalld:
+    interface: "{{ item }}"
+    zone: trusted
+    permanent: true
+    state: enabled
+    immediate: true
+  loop:
+    - cni0
+    - flannel.1
+  tags:
+    - firewalld
+

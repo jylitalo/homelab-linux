@@ -39,6 +39,9 @@
         name: com.logseq.Logseq
         state: present
         remote: flathub
+    - name: Import k3s server settings
+      ansible.builtin.import_tasks:
+        file: tasks/k3s-server.yml
   handlers:
     - name: Import shared handlers
       ansible.builtin.import_tasks:
