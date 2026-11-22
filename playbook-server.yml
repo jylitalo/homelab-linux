@@ -24,7 +24,7 @@
         name: "prodesk"
     - name: Import shared tasks
       ansible.builtin.import_tasks:
-        file: playbook-shared.yml
+        file: tasks/shared.yml
     - name: Additional server packages
       ansible.builtin.dnf:
         name:

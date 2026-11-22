@@ -15,7 +15,7 @@
         name: "raspberry"
     - name: Import shared tasks
       ansible.builtin.import_tasks:
-        file: playbook-shared.yml
+        file: tasks/shared.yml
     - name: Additional workstate packages
       ansible.builtin.apt:
         name:
