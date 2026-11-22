@@ -30,7 +30,7 @@
         name:
           - helm
           - samba
-    state: present
+        state: present
     ###
     ## K3S requirements
     ###
@@ -88,7 +88,11 @@
         state: enabled
         immediate: true
       loop:
+        - 6443/tcp    # sun-sr-https
+        - 7946/tcp    # pihole
+        - 7946/udp    # pihole
         - 8472/udp    # Flannel VXLAN (pod-to-pod overlay)
+        - 10250/tcp   # kube-metrics-server
         - 30222/tcp   # Forgejo SSH NodePort
         - 51820/udp   # Flannel WireGuard (if used)
       tags:
@@ -102,6 +106,8 @@
         immediate: true
       loop:
         - dns
+        - etcd-client
+        - etcd-server
         - http
         - https
         - kube-apiserver
@@ -228,20 +234,6 @@
         creates: /home/fluxcd/gitops.git/clusters/homelab
 
   handlers:
-    ###
-    ## K3S requirements
-    ###
-    - name: Restart systemd-modules-load
-      community.general.modprobe:
-        name: "{{ item }}"
-        state: present
-      loop: "{{ k3s_host_modules }}"
-
-    - name: Reload sysctl
-      ansible.builtin.command: sysctl --system
-      changed_when: false
-
-    - name: Restart NetworkManager
-      ansible.builtin.systemd:
-        name: NetworkManager
-        state: restarted
+    - name: Import shared handlers
+      ansible.builtin.import_tasks:
+        file: handlers/shared.yml

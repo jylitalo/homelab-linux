@@ -39,3 +39,8 @@
         name: com.logseq.Logseq
         state: present
         remote: flathub
+  handlers:
+    - name: Import shared handlers
+      ansible.builtin.import_tasks:
+        file: handlers/shared.yml
+
