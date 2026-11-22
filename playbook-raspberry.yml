@@ -12,16 +12,18 @@
   tasks:
     - name: Configure system hostname
       ansible.builtin.hostname:
-        name: "touchbar"
+        name: "raspberry"
     - name: Import shared tasks
       ansible.builtin.import_tasks:
         file: playbook-shared.yml
     - name: Additional workstate packages
       ansible.builtin.apt:
         name:
+          - bluez
+          - dbus
+          - dbus-user-session
           - podman
           - uidmap
-          - dbus-user-session
         state: present
     - name: Create Quadlet directory
       ansible.builtin.file:
@@ -91,19 +93,16 @@
     - name: Deploy Home Assistant Quadlet
       ansible.builtin.template:
         src: homeassistant.container.j2
-        dest: "{{ homeassistant_home }}/.config/containers/systemd/homeassistant.container"
-        owner: "{{ homeassistant_user }}"
-        group: "{{ homeassistant_user }}"
+        dest: /etc/containers/systemd/homeassistant.container
+        owner: root
+        group: root
         mode: "0644"
-      notify: Restart Home Assistant
+      become: true
 
-    - name: Ensure Home Assistant home directory ownership
-      ansible.builtin.file:
-        path: "{{ homeassistant_home }}"
-        state: directory
-        owner: "{{ homeassistant_user }}"
-        group: "{{ homeassistant_user }}"
-        mode: "0750"
+    - name: Reload systemd to generate Quadlet units
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      become: true
 
     - name: Create Ansible temporary directory
       ansible.builtin.file:
@@ -112,6 +111,13 @@
         owner: "{{ homeassistant_user }}"
         group: "{{ homeassistant_user }}"
         mode: "0700"
+
+    - name: Create Ansible temporary directory
+      ansible.builtin.file:
+        path: "{{ homeassistant_home }}/.local/share/matter-server"
+        owner: "1000"
+        group: "1000"
+        recurse: true
 
     - name: Ensure Home Assistant home directory ownership
       ansible.builtin.file:
@@ -122,17 +128,11 @@
         mode: "0750"
 
     - name: Enable and start Home Assistant
-      become_user: "{{ homeassistant_user }}"
-      become_flags: "-H"
-      environment:
-        XDG_RUNTIME_DIR: "/run/user/{{ homeassistant_uid }}"
-        DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ homeassistant_uid }}/bus"
       ansible.builtin.systemd_service:
         name: homeassistant.service
-        scope: user
         enabled: true
         state: started
-        daemon_reload: true
+      become: true
 
   handlers:
     - name: Reload systemd
